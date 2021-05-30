@@ -1,0 +1,77 @@
+<html>
+
+<head>
+    <title> MNIST CVAE Demo </title>
+</head>
+
+<body>
+    <!-- Load ONNX.js -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxjs/dist/onnx.min.js"></script>
+    <!-- Code that consume ONNX.js -->
+    
+    <canvas id="output" width="280" height="280">
+        Your browser does not support canvas.
+    </canvas>
+    <p id="msg">Model is still loading. Please wait.</p>
+    z0: <input type="range" min="-3" max="3" step="0.1" oninput="draw()" id="z0" />
+    z1: <input type="range" min="-3" max="3" step="0.1" oninput="draw()" id="z1" />
+    c: <select onchange="draw()" id="c">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+    </select>
+</body>
+<script>
+        // create a session
+        const myOnnxSession = new onnx.InferenceSession();
+        // load the ONNX model file
+        var draw = () => {
+            alert("Model is loading");
+        }
+        const canvas = document.getElementById("output");
+        const ctx = canvas.getContext("2d");
+        ctx.scale(10, 10);
+        myOnnxSession.loadModel("./decoder.onnx").then(() => {
+            // generate model input
+            document.getElementById("msg").innerHTML = "Model loaded."
+            draw = () => {
+                const z = new Float32Array(1 * 2).fill(0);
+                z[0] = Number(document.getElementById("z0").value);
+                z[1] = Number(document.getElementById("z1").value);
+                const c = new Float32Array(1 * 10).fill(0);
+                c[Number(document.getElementById("c").value)] = 1;
+                const tensorZ = new onnx.Tensor(z, "float32", [1, 2]);
+                const tensorC = new onnx.Tensor(c, "float32", [1, 10]);
+                const inferenceInputs = [tensorZ, tensorC];
+                const start = performance.now();
+                // execute the model
+                myOnnxSession.run(inferenceInputs).then((output) => {
+                    // consume the output
+                    const outputTensor = output.values().next().value;
+                    document.getElementById("msg").innerHTML = "Inference time: " + (performance.now() - start).toFixed(3) + "ms";
+                    const imageData = ctx.createImageData(28, 28);
+                    for (let i = 0; i < 28 * 28; ++i) {
+                        const v = Math.round(255 * outputTensor.data[i]);
+                        for (let j = 0; j < 3; ++j) {
+                            imageData.data[i * 4 + j] = v;
+                        }
+                        imageData.data[i * 4 + 3] = 255;
+                    }
+                    var newCanvas = document.createElement("canvas");
+                    newCanvas.getContext("2d").putImageData(imageData, 0, 0);
+                    ctx.drawImage(newCanvas, 0, 0);
+                });
+            }
+            draw();
+        }).catch((e) => {
+            alert(e);
+        });
+    </script>
+</html>
